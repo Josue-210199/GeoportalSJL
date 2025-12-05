@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Geoportal SJL</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.locatecontrol/dist/L.Control.Locate.min.css" />
+  <script src="https://unpkg.com/leaflet.locatecontrol/dist/L.Control.Locate.min.js"></script>
+
+  <!-- Routing Machine (NECESARIO PARA LAS RUTAS) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+  <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+
+  <style>
+    body { margin: 0; padding: 0; font-family: Arial; }
+
+    #map { height: 100vh; width: 100%; }
+
+    /* Sidebar */
+    #sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 260px;
+      height: 100vh;
+      background: #ffffff;
+      border-right: 1px solid #ccc;
+      padding: 15px;
+      overflow-y: auto;
+      transform: translateX(-260px);
+      transition: 0.3s;
+      z-index: 1000;
+    }
+
+    #sidebar.open { transform: translateX(0); }
+
+    #toggleSidebar {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 1200;
+      background: #fff;
+      padding: 8px 12px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      cursor: pointer;
+      font-size: 18px;
+    }
+
+    h2 { text-align: center; }
+
+    .section-title {
+      font-weight: bold;
+      margin-top: 15px;
+      margin-bottom: 8px;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 4px;
+    }
+
+    .capa-item {
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 10px;
+    }
+
+    .capa-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .capa-info img { width: 26px; }
+
+    /* Switch */
+    .switch { position: relative; width: 45px; height: 22px; }
+
+    .switch input { opacity: 0; width: 0; height: 0; }
+
+    .slider {
+      position: absolute; cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #ccc;
+      transition: .3s;
+      border-radius: 22px;
+    }
+
+    .slider:before {
+      position: absolute; content: "";
+      height: 18px; width: 18px;
+      left: 2px; bottom: 2px;
+      background-color: #fff; border-radius: 50%;
+      transition: .3s;
+    }
+
+    input:checked + .slider { background-color: #2196F3; }
+    input:checked + .slider:before { transform: translateX(22px); }
+
+    .btn-buscar {
+      background:#1e90ff;
+      color:white;
+      border:none;
+      padding:6px 8px;
+      margin-top:8px;
+      border-radius:4px;
+      cursor:pointer;
+      width:100%;
+    }
+    .btn-buscar:hover { background:#0b70d0; }
+
+
+     /* Quitar completamente el icono por defecto */
+    .leaflet-control-locate a .leaflet-control-locate-location-arrow {
+    display: none !important;
+    }
+
+    /* Estilo del botón */
+    .leaflet-control-locate a {
+    width: 42px !important;     /* fondo más ancho */
+    height: 42px !important;    /* fondo más alto */
+    background-image: url("icons/gps.png") !important;  /* tu ícono */
+    background-size: 28px 28px !important;              /* tamaño del ícono */
+    background-repeat: no-repeat !important;
+    background-position: center !important;
+    background-color: white !important;
+    border-radius: 8px !important;
+    border: 1px solid #aaa !important;
+   }
+
+    /* Cuando está activo */
+    .leaflet-control-locate.active a {
+    background-color: #1e90ff !important;
+    border-color: #1e90ff !important;
+   }
+
+
+   /* --- Cuando el sidebar está abierto, mueve el botón ☰ --- */
+   .sidebar-open .leaflet-control-custom {
+   left: 260px; /* se corre a la derecha */
+   }
+
+   /* --- Reubicar los controles de zoom (+ y -) --- */
+   .leaflet-top.leaflet-right {
+   top: 60px !important; /* lo bajas debajo del título */
+   right: 10px !important; 
+   }
+
+   /* Opcional: margen entre los botones de zoom */
+   .leaflet-control-zoom {
+   margin-top: 20px !important;
+   }
+
+   /* --- Ajuste: mover el botón ☰ al abrir el sidebar --- */
+   #sidebar.open ~ #toggleSidebar {
+   left: 260px !important;   /* se desplaza evitando tapar el título */
+   }
+
+   /* --- Ajuste: evitar superposición del botón ☰ con el título --- */
+   #toggleSidebar {
+   top: 10px !important;
+   left: 10px !important; /* posición normal */
+   z-index: 5000 !important;
+   }
+
+   /* --- Ajuste: reubicar el título para evitar superposición --- */
+   #titulo-geoportal {
+   position: fixed;
+   top: 10px;
+   left: 70px !important; /* separado del botón */
+   z-index: 4000;
+   }
+
+   /* --- Ajuste definitivo: mover los controles (+/-) a la esquina superior derecha --- */
+   .leaflet-top.leaflet-right {
+   top: 10px !important;  /* ya no invade el título */
+   right: 10px !important;
+   }
+
+   /* Alinear bien los botones de zoom */
+   .leaflet-control-zoom {
+   margin-top: 0 !important;
+   }
+
+   /* Evita que LocateControl se superponga en la parte superior */
+   .leaflet-control-locate {
+    margin-top: 60px !important;
+   }
+
+   /* CSS compatible: se activa cuando <body> tiene .sidebar-open */
+   body.sidebar-open #toggleSidebar {
+   left: 280px !important;
+   transition: left .25s ease;
+   }
+
+   #toggleSidebar {
+   z-index: 1201 !important;
+   }
+
+   #titulo-geoportal {
+   left: 80px !important;
+   position: fixed;
+   top: 12px;
+   z-index: 1200 !important;
+   }
+
+   .leaflet-top.leaflet-right {
+   top: 12px !important;
+   right: 10px !important;
+   z-index: 1200 !important;
+   }
+
+   .leaflet-control-locate {
+   margin-top: 62px !important;
+   z-index: 1200 !important;
+   }
+
+   /* --- Forzar que los controles de zoom (+/-) NO estén arriba a la izquierda --- */
+.leaflet-top.leaflet-left {
+  top: auto !important;
+  left: auto !important;
+}
+
+/* --- Ubicar definitivamente los controles de zoom en la parte superior derecha --- */
+.leaflet-control-zoom {
+  position: fixed !important;
+  top: 12px !important;
+  right: 12px !important;
+  z-index: 2000 !important;
+}
+
+/* --- Ajustar LocateControl para que no se superponga con zoom --- */
+.leaflet-control-locate {
+  position: fixed !important;
+  top: 75px !important;     /* debajo del zoom */
+  right: 12px !important;
+  z-index: 2000 !important;
+}
+   </style>
+
+</head>
+
+<body>
+
+<div id="toggleSidebar">☰ Capas</div>
+
+<div id="sidebar">
+  <h2>Geoportal SJL</h2>
+
+  <div class="section-title">Mapas Base</div>
+  <label><input type="radio" name="basemap" value="osm" checked> OpenStreetMap</label><br>
+  <label><input type="radio" name="basemap" value="sat"> Satelital</label><br>
+  <label><input type="radio" name="basemap" value="topo"> Topográfico</label><br>
+  <label><input type="radio" name="basemap" value="carto"> Carto Light</label><br>
+  <label><input type="radio" name="basemap" value="dark"> Carto Dark</label><br>
+  <label><input type="radio" name="basemap" value="blue"> Blue Marble</label><br>
+
+  <div class="section-title">Capas Temáticas</div>
+
+  <!-- REUNIÓN -->
+  <div class="capa-item">
+    <div class="capa-info">
+      <img src="icons/reunion.png">
+      <span>Puntos de Reunión</span>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="capa-reunion" checked><span class="slider"></span>
+    </label>
+    <button onclick="buscarMasCercano('reunion')" class="btn-buscar">Buscar punto más cercano</button>
+  </div>
+
+  <!-- HIDRANTES -->
+  <div class="capa-item">
+    <div class="capa-info">
+      <img src="icons/hidrante.png">
+      <span>Hidrantes</span>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="capa-hidrantes" checked><span class="slider"></span>
+    </label>
+    <button onclick="buscarMasCercano('hidrantes')" class="btn-buscar">Buscar punto más cercano</button>
+  </div>
+
+  <!-- ALBERGUES -->
+  <div class="capa-item">
+    <div class="capa-info">
+      <img src="icons/albergue.png">
+      <span>Albergues</span>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="capa-albergues" checked><span class="slider"></span>
+    </label>
+    <button onclick="buscarMasCercano('albergues')" class="btn-buscar">Buscar punto más cercano</button>
+  </div>
+
+  <!-- AGUA -->
+  <div class="capa-item">
+    <div class="capa-info">
+      <img src="icons/agua.png">
+      <span>Abastecimiento de Agua</span>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="capa-agua" checked><span class="slider"></span>
+    </label>
+    <button onclick="buscarMasCercano('agua')" class="btn-buscar">Buscar punto más cercano</button>
+  </div>
+
+  <!-- ACV -->
+  <div class="capa-item">
+    <div class="capa-info">
+      <img src="icons/acv.png">
+      <span>ACV Zona Baja</span>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="capa-acv" checked><span class="slider"></span>
+    </label>
+    <button onclick="buscarMasCercano('acv')" class="btn-buscar">Buscar punto más cercano</button>
+  </div>
+
+</div>
+
+<div id="map"></div>
+
+<script>
+
+const map = L.map("map").setView([-11.98, -76.99], 13);
+
+// Mapas base
+const baseLayers = {
+  osm: L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"),
+  sat: L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"),
+  topo: L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"),
+  carto: L.tileLayer("https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png"),
+  dark: L.tileLayer("https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png"),
+  blue: L.tileLayer("https://tiles.stadiamaps.com/tiles/stamen_watercolor/{z}/{x}/{y}.jpg")
+};
+
+baseLayers.osm.addTo(map);
+
+document.querySelectorAll("input[name='basemap']").forEach(radio => {
+  radio.addEventListener("change", e => {
+    Object.values(baseLayers).forEach(layer => map.removeLayer(layer));
+    baseLayers[e.target.value].addTo(map);
+  });
+});
+
+// Iconos
+function icono(name) {
+  return L.icon({
+    iconUrl: `icons/${name}.png`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 32],
+  });
+}
+
+function cargarCapa(ruta, iconName) {
+  return L.geoJSON(null, {
+    pointToLayer: (f, latlng) => L.marker(latlng, { icon: icono(iconName) }),
+    onEachFeature: (f, layer) => {
+      let html = "";
+      for (const k in f.properties) html += `<b>${k}:</b> ${f.properties[k]}<br>`;
+      layer.bindPopup(html);
+    }
+  });
+}
+
+// Capas
+const reunion = cargarCapa("datos/puntos_reunion.geojson", "reunion");
+const hidrantes = cargarCapa("datos/hidrantes.geojson", "hidrante");
+const albergues = cargarCapa("datos/albergues.geojson", "albergue");
+const agua = cargarCapa("datos/abastecimiento_agua.geojson", "agua");
+const acv = cargarCapa("datos/acv_baja.geojson", "acv");
+
+fetch("datos/puntos_reunion.geojson").then(r => r.json()).then(d => reunion.addData(d).addTo(map));
+fetch("datos/hidrantes.geojson").then(r => r.json()).then(d => hidrantes.addData(d).addTo(map));
+fetch("datos/albergues.geojson").then(r => r.json()).then(d => albergues.addData(d).addTo(map));
+fetch("datos/abastecimiento_agua.geojson").then(r => r.json()).then(d => agua.addData(d).addTo(map));
+fetch("datos/acv_baja.geojson").then(r => r.json()).then(d => acv.addData(d).addTo(map));
+
+// Switch capas
+document.getElementById("capa-reunion").onchange = e => e.target.checked ? reunion.addTo(map) : map.removeLayer(reunion);
+document.getElementById("capa-hidrantes").onchange = e => e.target.checked ? hidrantes.addTo(map) : map.removeLayer(hidrantes);
+document.getElementById("capa-albergues").onchange = e => e.target.checked ? albergues.addTo(map) : map.removeLayer(albergues);
+document.getElementById("capa-agua").onchange = e => e.target.checked ? agua.addTo(map) : map.removeLayer(agua);
+document.getElementById("capa-acv").onchange = e => e.target.checked ? acv.addTo(map) : map.removeLayer(acv);
+
+// GPS
+L.control.locate({ position: "bottomright", flyTo: true }).addTo(map);
+
+document.getElementById("toggleSidebar").onclick = () =>
+  document.getElementById("sidebar").classList.toggle("open");
+
+let routingControl = null;
+
+// Buscar punto más cercano
+function buscarMasCercano(capaName) {
+
+  const capas = { reunion, hidrantes, albergues, agua, acv };
+  const capa = capas[capaName];
+
+  if (!capa) return alert("Capa no encontrada");
+
+  map.locate({ setView: true, maxZoom: 16, enableHighAccuracy: true });
+
+  map.once("locationfound", (e) => {
+    const userLatLng = e.latlng;
+    let puntos = [];
+
+    capa.eachLayer(layer => {
+      if (layer.getLatLng) puntos.push(layer.getLatLng());
+    });
+
+    if (puntos.length === 0) return alert("No hay puntos en esta capa");
+
+    let distanciaMin = Infinity;
+    let destino = null;
+
+    puntos.forEach(p => {
+      const d = userLatLng.distanceTo(p);
+      if (d < distanciaMin) {
+        distanciaMin = d;
+        destino = p;
+      }
+    });
+
+    if (routingControl) map.removeControl(routingControl);
+
+    routingControl = L.Routing.control({
+      waypoints: [
+        L.latLng(userLatLng.lat, userLatLng.lng),
+        L.latLng(destino.lat, destino.lng)
+      ],
+      lineOptions: {
+        styles: [{ color: "blue", opacity: 0.8, weight: 5 }]
+      },
+      router: L.Routing.osrmv1({
+        serviceUrl: "https://router.project-osrm.org/route/v1/"
+      }),
+      show: false,
+      addWaypoints: false
+    })
+    .on("routesfound", function (e) {
+      const ruta = e.routes[0];
+      const metros = ruta.summary.totalDistance;
+      alert("Distancia aproximada: " + (metros / 1000).toFixed(2) + " km");
+    })
+    .addTo(map);
+
+  });
+
+
+sidebar.on("opening", function () {
+  document.body.classList.add("sidebar-open");
+});
+sidebar.on("closing", function () {
+  document.body.classList.remove("sidebar-open");
+});
+}
+
+// Fallback: cuando se abre/cierra el sidebar, ponemos/quitar la clase .sidebar-open en <body>
+// Esto hace que selectores CSS simples funcionen sin depender de :has()
+(function(){
+  const toggle = document.getElementById('toggleSidebar');
+  const sidebar = document.getElementById('sidebar');
+  if (!toggle || !sidebar) return;
+
+  // Asegúrate de que la clase .sidebar-open esté sincronizada al cargar
+  if (sidebar.classList.contains('open')) document.body.classList.add('sidebar-open');
+
+  toggle.addEventListener('click', () => {
+    // Toggle ya hace sidebar.classList.toggle('open') en tu código; aquí sincronizamos body
+    setTimeout(() => { // pequeño timeout para asegurar que la clase .open ya se cambió
+      if (sidebar.classList.contains('open')) document.body.classList.add('sidebar-open');
+      else document.body.classList.remove('sidebar-open');
+    }, 10);
+  });
+})();
+
+</script>
+
+</body>
+</html>
